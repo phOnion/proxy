@@ -16,7 +16,7 @@
   "require": {
     "php": ">=8.1",
     "onion/interfaces": "@dev",
-    "laminas/laminas-code": "^4.5"
+    "nette/php-generator": "^4.0"
   },
   "require-dev": {
     "roave/security-advisories": "@dev",

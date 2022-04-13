@@ -2,8 +2,7 @@
 
 namespace Onion\Framework\Proxy\Writers;
 
-use Laminas\Code\Generator\ClassGenerator;
-use Laminas\Code\Generator\GeneratorInterface;
+use Nette\PhpGenerator\PhpFile;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
 
 class FileWriter implements WriterInterface
@@ -14,32 +13,25 @@ class FileWriter implements WriterInterface
         $this->location ??= sys_get_temp_dir();
     }
 
-    public function save(GeneratorInterface $reflection): bool
+    public function save(string $className, string $code): bool
     {
-        $path = $this->location;
-        if ($reflection instanceof ClassGenerator) {
-            $path = $path . DIRECTORY_SEPARATOR . preg_replace(
+        $path = $this->location .
+            DIRECTORY_SEPARATOR .
+            preg_replace(
                 '/\\\\/i',
                 DIRECTORY_SEPARATOR,
-                $reflection->getNamespaceName()
+                trim($className, '\\'),
             );
-        }
 
-        if (!file_exists($path)) {
-            mkdir($path, recursive: true);
-        }
-        $name = $reflection instanceof ClassGenerator ? $reflection->getName() : tempnam($path, '');
+        $dir = dirname($path);
+        $file = basename($path);
 
-        $location = realpath($path) . DIRECTORY_SEPARATOR . $name . '.php';
+        if (!is_dir($dir)) {
+            mkdir($dir, recursive: true);
+        };
+        $dir = realpath($dir);
+        $path = "{$dir}/{$file}.php";
 
-
-        $code = $reflection->generate();
-
-        eval($code);
-
-        return file_put_contents(
-            $location,
-            "<?php\ndeclare(strict_types=1);\n{$code}"
-        ) > 0;
+        return file_put_contents($path, $code) > 0;
     }
 }
