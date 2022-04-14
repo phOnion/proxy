@@ -33,9 +33,10 @@ class LazyFactory
 
         if (!class_exists($className)) {
             $file = new PhpFile();
-            $target = $file->setStrictTypes(true)
-                ->addNamespace($namespace)
-                ->addClass($sourceReflection->getName());
+            $ns = $file->setStrictTypes(true)
+                ->addNamespace($namespace);
+
+            $target = $ns->addClass($sourceReflection->getName());
 
             $target->addMethod('__construct')
                 ->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
@@ -77,10 +78,9 @@ class LazyFactory
                 ));
             }
 
-            $code = (string) $file;
-            eval($code);
+            eval((string) $ns);
 
-            $this->writer?->save($className, $code);
+            $this->writer?->save($className, (string) $file);
         }
 
         return new ($className)($initializer);
