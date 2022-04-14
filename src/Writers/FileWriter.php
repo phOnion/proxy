@@ -2,7 +2,6 @@
 
 namespace Onion\Framework\Proxy\Writers;
 
-use Nette\PhpGenerator\PhpFile;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
 
 class FileWriter implements WriterInterface
