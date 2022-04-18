@@ -23,20 +23,20 @@ class LazyFactory
     public function generate(callable $initializer, string $class): object
     {
         $sourceReflection = new ReflectionClass($class);
+        $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()) + 1);
         $namespace = trim(
             $this->namespacePrefix . '\\' .
                 $sourceReflection->getNamespaceName(),
             '\\'
         );
-        $className = $namespace . '\\' .
-            $sourceReflection->getName();
+        $className = "{$namespace}\\{$name}";
 
         if (!class_exists($className)) {
             $file = new PhpFile();
             $ns = $file->setStrictTypes(true)
                 ->addNamespace($namespace);
 
-            $target = $ns->addClass($sourceReflection->getName());
+            $target = $ns->addClass($name);
 
             $target->addMethod('__construct')
                 ->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
