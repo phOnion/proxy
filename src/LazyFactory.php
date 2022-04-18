@@ -59,6 +59,10 @@ class LazyFactory
             }
 
             foreach ($sourceReflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+                if ($method->isConstructor()) {
+                    continue;
+                }
+
                 $m = $target->addMethod($method->getName())
                     ->setReturnNullable($method->getReturnType()?->allowsNull() ?? false)
                     ->setReturnType($method->getReturnType()?->getName());
