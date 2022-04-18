@@ -10,7 +10,7 @@ use Onion\Framework\Proxy\Interfaces\WriterInterface;
 use ReflectionClass;
 use ReflectionMethod;
 
-class LazyFactory
+class ScopeLocalizerFactory
 {
     public function __construct(
         private readonly string $namespacePrefix = '__Proxy',
