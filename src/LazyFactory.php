@@ -7,17 +7,15 @@ namespace Onion\Framework\Proxy;
 use Closure;
 use Nette\PhpGenerator\PhpFile;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
-use Onion\Framework\Proxy\Writers\FileWriter;
 use ReflectionClass;
 use ReflectionMethod;
 
 class LazyFactory
 {
     public function __construct(
-        private string $namespacePrefix = '__Proxy',
-        private ?WriterInterface $writer = null,
+        private readonly string $namespacePrefix = '__Proxy',
+        private readonly ?WriterInterface $writer = null,
     ) {
-        $this->writer ??= new FileWriter();
     }
 
     public function generate(callable $initializer, string $class): object
@@ -77,8 +75,7 @@ class LazyFactory
 
                 $m->setBody($this->getMethodBody(
                     $method->getName() . '(' . implode(', ', $params) . ')',
-                    $method->getReturnType()?->getName() !== 'void',
-                    true,
+                    $method->getReturnType()?->getName() !== 'void'
                 ));
             }
 
@@ -90,10 +87,10 @@ class LazyFactory
         return new ($className)($initializer);
     }
 
-    private function getMethodBody(string $expr, bool $shouldReturn, bool $isMethodCall): string
+    private function getMethodBody(string $expr, bool $shouldReturn, bool $onInstance = true): string
     {
         $return = $shouldReturn ? 'return ' : '';
-        $body = $isMethodCall ? "\$this->__instance->{$expr}" : $expr;
+        $body = $onInstance ? "\$this->__instance->{$expr}" : $expr;
 
         return <<<BODY
             if (!isset(\$this->__instance)) {
