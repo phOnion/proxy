@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Onion\Framework\Proxy;
 
+use Closure;
 use Nette\PhpGenerator\PhpFile;
+use Onion\Framework\Proxy\Interfaces\ProxyFactoryInterface;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
 use ReflectionClass;
 use ReflectionMethod;
 
-class ValueHolderFactory
+class ValueHolderFactory implements ProxyFactoryInterface
 {
     public function __construct(
         private readonly string $namespacesPrefix = '__Proxy',
@@ -17,7 +19,7 @@ class ValueHolderFactory
     ) {
     }
 
-    public function generate(callable $initializer, string $class): object
+    public function generate(string $class, Closure $initializer): object
     {
         $sourceReflection = new ReflectionClass($class);
 

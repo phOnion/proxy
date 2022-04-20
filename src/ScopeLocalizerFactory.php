@@ -6,11 +6,12 @@ namespace Onion\Framework\Proxy;
 
 use Closure;
 use Nette\PhpGenerator\PhpFile;
+use Onion\Framework\Proxy\Interfaces\ProxyFactoryInterface;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
 use ReflectionClass;
 use ReflectionMethod;
 
-class ScopeLocalizerFactory
+class ScopeLocalizerFactory implements ProxyFactoryInterface
 {
     public function __construct(
         private readonly string $namespacePrefix = '__Proxy',
@@ -18,7 +19,7 @@ class ScopeLocalizerFactory
     ) {
     }
 
-    public function generate(callable $initializer, string $class): object
+    public function generate(string $class, Closure $initializer): object
     {
         $sourceReflection = new ReflectionClass($class);
         $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()) + 1);
