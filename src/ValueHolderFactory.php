@@ -10,6 +10,7 @@ use Onion\Framework\Proxy\Interfaces\ProxyFactoryInterface;
 use Onion\Framework\Proxy\Interfaces\WriterInterface;
 use ReflectionClass;
 use ReflectionMethod;
+use Onion\Framework\Proxy\Interfaces\ProxyInterface;
 
 class ValueHolderFactory implements ProxyFactoryInterface
 {
