@@ -57,6 +57,8 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
                 $target->setExtends($class);
             }
 
+            $target->addImplement(ProxyInterface::class);
+
             foreach ($sourceReflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 if ($method->isConstructor()) {
                     continue;

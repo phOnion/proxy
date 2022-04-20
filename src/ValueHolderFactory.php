@@ -51,7 +51,7 @@ class ValueHolderFactory implements ProxyFactoryInterface
                 ->setReadOnly(true)
                 ->setType($class);
 
-            $target->setImplements($sourceReflection->getInterfaceNames());
+            $target->setImplements([...$sourceReflection->getInterfaceNames(), ProxyInterface::class]);
             $target->setExtends($sourceReflection->getParentClass()?->getName());
 
             foreach ($sourceReflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
