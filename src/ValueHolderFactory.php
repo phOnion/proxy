@@ -24,7 +24,7 @@ class ValueHolderFactory implements ProxyFactoryInterface
     {
         $sourceReflection = new ReflectionClass($class);
 
-        $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()) + 1);
+        $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()));
         $namespace = trim(
             $this->namespacePrefix . '\\' .
                 $sourceReflection->getNamespaceName(),
