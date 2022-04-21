@@ -26,6 +26,9 @@
     "psr-4": {
       "Onion\\Framework\\Proxy\\": "src/",
       "Tests\\": "tests/"
-    }
+    },
+    "files": [
+      "functions.php"
+    ]
   }
 }
