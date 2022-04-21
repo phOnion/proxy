@@ -20,7 +20,7 @@ class ValueHolderFactory implements ProxyFactoryInterface
     ) {
     }
 
-    public function generate(string $class, Closure $initializer): object
+    public function generate(string $class, Closure $initializer, array $interceptors = [], array $methods = []): object
     {
         $sourceReflection = new ReflectionClass($class);
 
@@ -38,10 +38,20 @@ class ValueHolderFactory implements ProxyFactoryInterface
                 ->addNamespace($namespace);
 
             $target = $ns->addClass($name);
-            $target->addMethod('__constructor')
-                ->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
+            $constructor = $target->addMethod('__construct');
+            $constructor->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
                 ->addParameter('initializer')
                 ->setType(Closure::class);
+
+            $constructor->addPromotedParameter('__interceptors')
+                ->setVisibility('private')
+                ->setReadOnly(true)
+                ->setType('array');
+
+            $constructor->addPromotedParameter('__proxyInstanceMagicMethods')
+                ->setVisibility('private')
+                ->setReadOnly(true)
+                ->setType('array');
 
             $target->addProperty('__initializer')
                 ->setType(Closure::class)
@@ -55,6 +65,36 @@ class ValueHolderFactory implements ProxyFactoryInterface
             $target->setImplements([...$sourceReflection->getInterfaceNames(), ProxyInterface::class]);
             $target->setExtends($sourceReflection->getParentClass()?->getName());
 
+            $interceptor = $target->addMethod('__callProxyMethodInterceptors')
+                ->setVisibility('private');
+
+            $interceptor->addParameter('method')
+                ->setType('string');
+            $interceptor->addParameter('arguments')
+                ->setType('array')
+                ->setDefaultValue([]);
+            $interceptor->setBody(<<<BODY
+                \$completed = false;
+                \$invocation = new \Onion\Framework\Proxy\Invocation\Invocation(
+                    [\$this->__instance, \$method],
+                    \$arguments,
+                    [...\$this->__interceptors[\$method], fn (\$i) => \$this->__instance->{\$method}(...\$i->getParameters())],
+                    \$completed,
+                );
+
+                while (!\$invocation->isCompleted() && !\$invocation->isTerminated()) {
+                    \$invocation->continue();
+                }
+
+                if (\$invocation->hasThrown()) {
+                    throw \$invocation->getException();
+                }
+
+
+                return \$invocation->getReturnValue();
+            BODY);
+
+
             foreach ($sourceReflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 if ($method->isConstructor() || $method->getName() === '__get' || $method->getName() === '__set') {
                     continue;
@@ -64,11 +104,7 @@ class ValueHolderFactory implements ProxyFactoryInterface
 
                 $m = $target->addMethod($method->getName())
                     ->setReturnNullable($method->getReturnType()?->allowsNull() ?? false)
-                    ->setReturnType(match ($methodReturnType) {
-                        'static' => $class,
-                        'self' => $class,
-                        default => $methodReturnType,
-                    });
+                    ->setReturnType($methodReturnType);
 
                 $params = [];
                 foreach ($method->getParameters() as $param) {
@@ -79,22 +115,28 @@ class ValueHolderFactory implements ProxyFactoryInterface
                 }
 
                 $m->setBody($this->getMethodBody(
-                    $method->getName() . '(' . implode(', ', $params) . ')',
+                    $method->getName(),
+                    implode(', ', $params),
                     $methodReturnType !== 'void',
                     true,
                 ));
             }
 
+            foreach ($methods as $name => $method) {
+                $target->addMethod($name)
+                    ->setReturnType('mixed')
+                    ->setBody("return \$this->__proxyInstanceMagicMethods['{$name}'](\$this);");
+            }
+
             $getter = $target->hasMethod('__get') ? $target->getMethod('__get') : $target->addMethod('__get');
             $getter->setParameters([])->setBody(
-                $this->getMethodBody('{$name}', true)
+                $this->getMethodBody('{$name}', '', true)
             )->setReturnType('mixed');
             $getter->addParameter('name')->setType('string');
 
-
             $setter = $target->hasMethod('__set') ? $target->getMethod('__set') : $target->addMethod('__set');
             $setter->setParameters([])->setBody(
-                $this->getMethodBody('{$name} = $value', false)
+                $this->getMethodBody('{$name} = $value', '', false)
             )->setReturnType('void');
 
             $setter->addParameter('name')->setType('string');
@@ -102,14 +144,14 @@ class ValueHolderFactory implements ProxyFactoryInterface
 
             $isset = $target->hasMethod('__isset') ? $target->getMethod('__isset') : $target->addMethod('__isset');
             $isset->setParameters([])->setBody(
-                $this->getMethodBody('isset($this->__instance->{$name})', true)
+                $this->getMethodBody('isset($this->__instance->{$name})', '', true)
             )->setReturnType('bool');
             $isset->addParameter('name')
                 ->setType('string');
 
             $unset = $target->hasMethod('__unset') ? $target->getMethod('__unset') : $target->addMethod('__unset');
             $unset->setParameters([])->setBody(
-                $this->getMethodBody('unset($this->__instance->{$name})', true)
+                $this->getMethodBody('unset($this->__instance->{$name})', '', true)
             )->setReturnType('void');
             $unset->addParameter('name')
                 ->setType('string');
@@ -123,17 +165,17 @@ class ValueHolderFactory implements ProxyFactoryInterface
     }
 
 
-    private function getMethodBody(string $expr, bool $shouldReturn, bool $onInstance = true): string
+    private function getMethodBody(string $expr, string $paramsList, bool $shouldReturn, bool $onInstance = true): string
     {
-        $return = $shouldReturn ? 'return ' : '';
-        $body = $onInstance ? "\$this->__instance->{$expr}" : $expr;
+        $return = $shouldReturn ? 'return $result === $this->__instance ? $this : $result;' : '';
+        $body = $onInstance ? "\$this->__callProxyMethodInterceptors('{$expr}', [{$paramsList}])" : $expr;
 
         return <<<BODY
             if (!isset(\$this->__instance)) {
             \$this->__instance = (\$this->__initializer)();
         }
-
-        {$return}{$body};
+        \$result = {$body};
+        {$return}
         BODY;
     }
 }

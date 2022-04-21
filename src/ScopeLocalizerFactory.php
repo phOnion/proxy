@@ -20,8 +20,12 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
     ) {
     }
 
-    public function generate(string $class, Closure $initializer): object
-    {
+    public function generate(
+        string $class,
+        Closure $initializer,
+        array $interceptors = [],
+        array $methods = []
+    ): object {
         $sourceReflection = new ReflectionClass($class);
         $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()));
         $namespace = trim(
@@ -38,15 +42,25 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
 
             $target = $ns->addClass($name);
 
-            $target->addMethod('__construct')
-                ->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
+            $constructor = $target->addMethod('__construct');
+            $constructor->setBody('$this->__initializer = \Closure::bind($initializer, $this);')
                 ->addParameter('initializer')
                 ->setType(Closure::class);
 
-            $target->addProperty('__initializer')
-                ->setType(Closure::class)
+            $constructor->addPromotedParameter('__interceptors')
+                ->setVisibility('private')
                 ->setReadOnly(true)
-                ->setVisibility('private');
+                ->setType('array');
+
+            $constructor->addPromotedParameter('__proxyInstanceMagicMethods')
+                ->setVisibility('private')
+                ->setReadOnly(true)
+                ->setType('array');
+
+            $target->addProperty('__initializer')
+                ->setVisibility('private')
+                ->setReadOnly(true)
+                ->setType(Closure::class);
             $target->addProperty('__instance')
                 ->setVisibility('private')
                 ->setReadOnly(true)
@@ -59,6 +73,35 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
             }
 
             $target->addImplement(ProxyInterface::class);
+
+            $interceptor = $target->addMethod('__callProxyMethodInterceptors')
+                ->setVisibility('private');
+
+            $interceptor->addParameter('method')
+                ->setType('string');
+            $interceptor->addParameter('arguments')
+                ->setType('array')
+                ->setDefaultValue([]);
+            $interceptor->setBody(<<<BODY
+                \$completed = false;
+                \$invocation = new \Onion\Framework\Proxy\Invocation\Invocation(
+                    [\$this->__instance, \$method],
+                    \$arguments,
+                    [...\$this->__interceptors[\$method], fn (\$i) => \$this->__instance->{\$method}(...\$i->getParameters())],
+                    \$completed,
+                );
+
+                while (!\$invocation->isCompleted() && !\$invocation->isTerminated()) {
+                    \$invocation->continue();
+                }
+
+                if (\$invocation->hasThrown()) {
+                    throw \$invocation->getException();
+                }
+
+
+                return \$invocation->getReturnValue();
+            BODY);
 
             foreach ($sourceReflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 if ($method->isConstructor()) {
@@ -78,9 +121,16 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
                 }
 
                 $m->setBody($this->getMethodBody(
-                    $method->getName() . '(' . implode(', ', $params) . ')',
+                    $method->getName(),
+                    implode(', ', $params),
                     $method->getReturnType()?->getName() !== 'void'
                 ));
+            }
+
+            foreach ($methods as $name => $method) {
+                $target->addMethod($name)
+                    ->setReturnType('mixed')
+                    ->setBody("return \$this->__proxyInstanceMagicMethods['{$name}'](\$this);");
             }
 
             eval((string) $ns);
@@ -88,20 +138,20 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
             $this->writer?->save($className, (string) $file);
         }
 
-        return new ($className)($initializer);
+        return new ($className)($initializer, $interceptors, $methods);
     }
 
-    private function getMethodBody(string $expr, bool $shouldReturn, bool $onInstance = true): string
+    private function getMethodBody(string $expr, string $paramsList, bool $shouldReturn, bool $onInstance = true): string
     {
-        $return = $shouldReturn ? 'return ' : '';
-        $body = $onInstance ? "\$this->__instance->{$expr}" : $expr;
+        $return = $shouldReturn ? 'return $result === $this->__instance ? $this : $result;' : '';
+        $body = $onInstance ? "\$this->__callProxyMethodInterceptors('{$expr}', [{$paramsList}])" : $expr;
 
         return <<<BODY
             if (!isset(\$this->__instance)) {
             \$this->__instance = (\$this->__initializer)();
         }
-
-        {$return}{$body};
+        \$result = {$body};
+        {$return}
         BODY;
     }
 }
