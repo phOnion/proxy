@@ -27,7 +27,7 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
         array $methods = []
     ): object {
         $sourceReflection = new ReflectionClass($class);
-        $name = substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName()));
+        $name = trim(substr($sourceReflection->getName(), strlen($sourceReflection->getNamespaceName())), '\\');
         $namespace = trim(
             $this->namespacePrefix . '\\' .
                 $sourceReflection->getNamespaceName(),
@@ -87,7 +87,7 @@ class ScopeLocalizerFactory implements ProxyFactoryInterface
                 \$invocation = new \Onion\Framework\Proxy\Invocation\Invocation(
                     [\$this->__instance, \$method],
                     \$arguments,
-                    [...\$this->__interceptors[\$method], fn (\$i) => \$this->__instance->{\$method}(...\$i->getParameters())],
+                    [...(\$this->__interceptors[\$method] ?? []), fn (\$i) => \$this->__instance->{\$method}(...\$i->getParameters())],
                     \$completed,
                 );
 
